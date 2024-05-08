@@ -83,7 +83,7 @@ def descifrarImagen():
     tiempo = tiempo_final - tiempo_inicial
     print("The original image has been reconstructed")
     print("The computation time has been", tiempo, "seconds")
-    io.imsave('original.png', imagenOriginal)
+    io.imsave('D:\\.vscode\\Crpytography\\data\\reconstruct\\out.png', imagenOriginal)
 
 
 if __name__ == '__main__':

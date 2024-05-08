@@ -108,8 +108,8 @@ def generarSecretos(img, k, n):
         imagenCifradaBits = imagenCifradaBits + vi
         imagenCifradaBits = pasarCadenaBitsAListaBits(imagenCifradaBits.to01())
         imagenCifradaBytes = pasarABytes(imagenCifradaBits, len(img) + 1, len(img[0]))
-        nombre = 'share'
-        nombre = nombre + str(i + 1)
+        nombre = 'D:\\.vscode\\Crpytography\\data\\share\\share'
+        nombre = nombre + str(i + 20)
         nombre = nombre + '.png'
         io.imsave(nombre, imagenCifradaBytes)
 
