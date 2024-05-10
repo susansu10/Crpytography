@@ -26,7 +26,7 @@ def sacarElementoCuerpoFinito(elemento):
     aux = int(elemento)
     return int2ba(aux, 64)
 
-def sacarSubloquesEnCuerpoFinito(imagenBits):
+def getFirstTwo64Bits(imagenBits):
     """Input: list of 16 bitarrays of size 8 
     Output: list of two elements of FF"""
     bloqueInicial = []
@@ -39,23 +39,12 @@ def sacarSubloquesEnCuerpoFinito(imagenBits):
     bloqueInicial.append(generarElemento(cadena))
     return bloqueInicial
 
-def generarCoeficiente0(imagenBits):
-    cadena = ""
-    for i in range(8):
-        cadena += imagenBits[i]
-    return generarElemento(cadena)
-
 def generarElementosAleatorios(n):
     """Returns a list with n random elements of FF"""
     vectores = []
     for i in range(0, n):
         vectores.append(generarElementoAleatorio())
     return vectores
-
-def elementoNeutroCF():
-    """Returns the unit of FF"""
-    return generarElemento("00000000000000000000000000000000\
-                           00000000000000000000000000000001")
 
 def sacarClave(imagenes,vectoresIncializacion): #Hay que lanzar una excepcion que salte si el sistema no tiene solucion (no se han reunido los suficientes usuarios)
     A = []
@@ -87,7 +76,7 @@ def generarImagenesPolinomio(coeficientes, vectoresInicializacion, bloqueInicial
 
 def generarSecretos(img, k, n):
     imagenBits = pasarABits(img)
-    bloque1bits = sacarSubloquesEnCuerpoFinito(imagenBits)
+    bloque1bits = getFirstTwo64Bits(imagenBits)
     vectoresInicializacion = generarElementosAleatorios(n)
     coeficientesP1 = generarElementosAleatorios(k - 1)
     coeficientesP2 = generarElementosAleatorios(k - 1)
@@ -103,7 +92,7 @@ def generarSecretos(img, k, n):
     for i in range(n):
         share = sacarElementoCuerpoFinito(imagenesP1[i]) + \
                 sacarElementoCuerpoFinito(imagenesP2[i])
-        iv = sacarElementoCuerpoFinito(imagenesP1[i]) + sacarElementoCuerpoFinito(imagenesP2[i])
+        iv = sacarElementoCuerpoFinito(bloque1bits[0]) + sacarElementoCuerpoFinito(bloque1bits[0])
         imagenCifradaBits = cifrar(iv,imgb,share, len(img) + 1, len(img[0]),cont)
         vi = sacarElementoCuerpoFinito(vectoresInicializacion[i])
         imagenCifradaBits = imagenCifradaBits + vi
@@ -137,7 +126,7 @@ def juntarSecretos(imagenes):
         imagen = pasarCadenaBitsAListaBits(imagen)
         imagenesBits.append(imagen)
     for i in range(len(imagenesBits)):
-        cabeceraImagen = sacarSubloquesEnCuerpoFinito(imagenesBits[i])
+        cabeceraImagen = getFirstTwo64Bits(imagenesBits[i])
         imagenesPolinomio1.append(cabeceraImagen[0])
         imagenesPolinomio2.append(cabeceraImagen[1])
     k1 = sacarClave(imagenesPolinomio1, vectoresIdentificacion)
@@ -154,14 +143,14 @@ def sacarUltimaFila(imagenbits, width):
     ultimaFila = imageninvertida[0:bitsPorFila]
     return ultimaFila[::-1]
 
-def cifrar(vi,imagen,share, high, width, padding):
+def cifrar(vi,imagen,clave, high, width, padding):
     vi = bitarray(vi)
-    share = bitarray(share)
+    clave = bitarray(clave)
     vi = vi.tobytes()
-    share = share.tobytes()
+    clave = clave.tobytes()
     img = bitarray(imagen)
     img = img.tobytes()
-    cipher = AES.new(share, AES.MODE_CBC, vi)
+    cipher = AES.new(clave, AES.MODE_CBC, vi)
     imagencifrada = cipher.encrypt(img[16:])
     imagencifrada = img[0:16] + imagencifrada
     imagencifrada = convertirBytesAMatrizBytes(imagencifrada, high, width)
@@ -176,13 +165,13 @@ def cifrar(vi,imagen,share, high, width, padding):
     imagencifrada = imagencifrada + ultimaFila
     return bitarray(imagencifrada)
 
-def descifrar(share, imagencifrada, high, width):
+def descifrar(clave, imagencifrada, high, width):
     img = bitarray(imagencifrada)
     img = img.tobytes()
     vi = img[0:16]
-    share = share.tobytes()
-    cipher = AES.new(share, AES.MODE_CBC, vi)
+    clave = clave.tobytes()
+    cipher = AES.new(clave, AES.MODE_CBC, vi)
     imagen = cipher.decrypt(img[16:])
-    imagen = share + imagen
+    imagen = clave + imagen
     imagen = convertirBytesAMatrizBytes(imagen, high-1, width)
     return imagen
