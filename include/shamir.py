@@ -26,7 +26,7 @@ def sacarElementoCuerpoFinito(elemento):
     aux = int(elemento)
     return int2ba(aux, 64)
 
-def sacarSubloquesEnCuerpoFinito(imagenBits):
+def getFirstTwo64Bits(imagenBits):
     """Input: list of 16 bitarrays of size 8 
     Output: list of two elements of FF"""
     bloqueInicial = []
@@ -39,23 +39,12 @@ def sacarSubloquesEnCuerpoFinito(imagenBits):
     bloqueInicial.append(generarElemento(cadena))
     return bloqueInicial
 
-def generarCoeficiente0(imagenBits):
-    cadena = ""
-    for i in range(8):
-        cadena += imagenBits[i]
-    return generarElemento(cadena)
-
 def generarElementosAleatorios(n):
     """Returns a list with n random elements of FF"""
     vectores = []
     for i in range(0, n):
         vectores.append(generarElementoAleatorio())
     return vectores
-
-def elementoNeutroCF():
-    """Returns the unit of FF"""
-    return generarElemento("00000000000000000000000000000000\
-                           00000000000000000000000000000001")
 
 def sacarClave(imagenes,vectoresIncializacion): #Hay que lanzar una excepcion que salte si el sistema no tiene solucion (no se han reunido los suficientes usuarios)
     A = []
@@ -75,41 +64,43 @@ def sacarClave(imagenes,vectoresIncializacion): #Hay que lanzar una excepcion qu
     B = FF(B)
     return np.linalg.solve(A,B)[0]
 
-def generarImagenesPolinomio(coeficientes, vectoresInicializacion, bloqueInicial):
+def generarImagenesPolinomio(coeficientes, vectoresIdentificacion, bloqueInicial):
     imagenes = []
-    for i in range(len(vectoresInicializacion)):
+    for i in range(len(vectoresIdentificacion)):
+        # imagen = F(I), I=vectorInicializacion[i]
         imagen = bloqueInicial
         for j in range(len(coeficientes)):
-            imagen = imagen + (coeficientes[j] * (vectoresInicializacion[i]**(j+1)))
+            imagen = imagen + (coeficientes[j] * (vectoresIdentificacion[i]**(j+1)))
         imagenes.append(imagen)
     return imagenes
 
 def generarSecretos(img, k, n):
     imagenBits = pasarABits(img)
-    bloque1bits = sacarSubloquesEnCuerpoFinito(imagenBits)
-    vectoresInicializacion = generarElementosAleatorios(n)
+    K = getFirstTwo64Bits(imagenBits)
+    vectoresIdentificacion = generarElementosAleatorios(n)
     coeficientesP1 = generarElementosAleatorios(k - 1)
     coeficientesP2 = generarElementosAleatorios(k - 1)
-    imagenesP1 = generarImagenesPolinomio(coeficientesP1, vectoresInicializacion, bloque1bits[0])
-    imagenesP2 = generarImagenesPolinomio(coeficientesP2, vectoresInicializacion, bloque1bits[1])
+    imagenesP1 = generarImagenesPolinomio(coeficientesP1, vectoresIdentificacion, K[0])
+    imagenesP2 = generarImagenesPolinomio(coeficientesP2, vectoresIdentificacion, K[1])
     #p1 = sacarElementoCuerpoFinito(imagenesP1[0])
     #p2 = sacarElementoCuerpoFinito(imagenesP2[0])
-    clave = sacarElementoCuerpoFinito(bloque1bits[0]) + \
-        sacarElementoCuerpoFinito(bloque1bits[1])
     imgb = pasarListaBloqueBytesACadenaBits(imagenBits)
     cont = 0
     while (len(imgb) % 128 != 0):
         cont = cont + 1
         imgb = imgb + '0'
-    for i in range(len(imagenesP1)):
-        p = sacarElementoCuerpoFinito(imagenesP1[i]) + sacarElementoCuerpoFinito(imagenesP2[i])
-        imagenCifradaBits = cifrar(p,imgb,clave, len(img) + 1, len(img[0]),cont)
-        vi = sacarElementoCuerpoFinito(vectoresInicializacion[i])
+    for i in range(n):
+        # key = p1 + p2, share for shamir, F(I)
+        share = sacarElementoCuerpoFinito(imagenesP1[i]) + \
+                sacarElementoCuerpoFinito(imagenesP2[i])
+        key = sacarElementoCuerpoFinito(K[0]) + sacarElementoCuerpoFinito(K[1])
+        imagenCifradaBits = aesEncrypt(share, imgb, key, len(img) + 1, len(img[0]),cont)
+        vi = sacarElementoCuerpoFinito(vectoresIdentificacion[i])
         imagenCifradaBits = imagenCifradaBits + vi
         imagenCifradaBits = pasarCadenaBitsAListaBits(imagenCifradaBits.to01())
         imagenCifradaBytes = pasarABytes(imagenCifradaBits, len(img) + 1, len(img[0]))
         nombre = 'D:\\.vscode\\Crpytography\\data\\share\\share'
-        nombre = nombre + str(i + 20)
+        nombre = nombre + str(i + 1)
         nombre = nombre + '.png'
         io.imsave(nombre, imagenCifradaBytes)
 
@@ -136,7 +127,7 @@ def juntarSecretos(imagenes):
         imagen = pasarCadenaBitsAListaBits(imagen)
         imagenesBits.append(imagen)
     for i in range(len(imagenesBits)):
-        cabeceraImagen = sacarSubloquesEnCuerpoFinito(imagenesBits[i])
+        cabeceraImagen = getFirstTwo64Bits(imagenesBits[i])
         imagenesPolinomio1.append(cabeceraImagen[0])
         imagenesPolinomio2.append(cabeceraImagen[1])
     k1 = sacarClave(imagenesPolinomio1, vectoresIdentificacion)
@@ -153,16 +144,17 @@ def sacarUltimaFila(imagenbits, width):
     ultimaFila = imageninvertida[0:bitsPorFila]
     return ultimaFila[::-1]
 
-def cifrar(vi,imagen,clave, high, width, padding):
-    vi = bitarray(vi)
-    clave = bitarray(clave)
-    vi = vi.tobytes()
-    clave = clave.tobytes()
-    img = bitarray(imagen)
-    img = img.tobytes()
-    cipher = AES.new(clave, AES.MODE_CBC, vi)
-    imagencifrada = cipher.encrypt(img[16:])
-    imagencifrada = img[0:16] + imagencifrada
+def aesEncrypt(iv, imagen, key, high, width, padding):
+    iv = bitarray(iv).tobytes()
+    key = bitarray(key).tobytes()
+    img = bitarray(imagen).tobytes()
+
+    print(f'iv = {iv}, key={key}')
+    
+    aes = AES.new(key, AES.MODE_CBC, iv)
+    imagencifrada = aes.encrypt(img[AES.block_size:])
+    # share of image = share + encrypt
+    imagencifrada = iv + imagencifrada
     imagencifrada = convertirBytesAMatrizBytes(imagencifrada, high, width)
     imagencifrada = pasarABits(imagencifrada)
     imagencifrada = pasarListaBloqueBytesACadenaBits(imagencifrada)
@@ -175,13 +167,16 @@ def cifrar(vi,imagen,clave, high, width, padding):
     imagencifrada = imagencifrada + ultimaFila
     return bitarray(imagencifrada)
 
-def descifrar(clave, imagencifrada, high, width):
-    img = bitarray(imagencifrada)
-    img = img.tobytes()
-    vi = img[0:16]
-    clave = clave.tobytes()
-    cipher = AES.new(clave, AES.MODE_CBC, vi)
-    imagen = cipher.decrypt(img[16:])
-    imagen = clave + imagen
+def descifrar(key, imagencifrada, high, width):
+    # key is original image 16 bytes
+    img = bitarray(imagencifrada).tobytes()
+    key = key.tobytes()
+    iv = img[:AES.block_size]
+    
+    print(f'iv = {iv}, key={key}')
+    
+    aes = AES.new(key, AES.MODE_CBC, iv)
+    imagen = aes.decrypt(img[AES.block_size:])
+    imagen = key + imagen
     imagen = convertirBytesAMatrizBytes(imagen, high-1, width)
     return imagen

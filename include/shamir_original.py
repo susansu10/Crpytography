@@ -5,7 +5,7 @@ from random import randint
 from galois import GF
 from bitarray import bitarray
 from bitarray.util import ba2int, int2ba
-from conversorImagenes import pasarABits, pasarListaBloqueBytesACadenaBits, \
+from include.conversorImagenes import pasarABits, pasarListaBloqueBytesACadenaBits, \
     pasarCadenaBitsAListaBits, pasarABytes, convertirBytesAMatrizBytes
 
 
@@ -26,7 +26,7 @@ def sacarElementoCuerpoFinito(elemento):
     aux = int(elemento)
     return int2ba(aux, 64)
 
-def getFirstTwo64Bits(imagenBits):
+def sacarSubloquesEnCuerpoFinito(imagenBits):
     """Input: list of 16 bitarrays of size 8 
     Output: list of two elements of FF"""
     bloqueInicial = []
@@ -39,12 +39,23 @@ def getFirstTwo64Bits(imagenBits):
     bloqueInicial.append(generarElemento(cadena))
     return bloqueInicial
 
+def generarCoeficiente0(imagenBits):
+    cadena = ""
+    for i in range(8):
+        cadena += imagenBits[i]
+    return generarElemento(cadena)
+
 def generarElementosAleatorios(n):
     """Returns a list with n random elements of FF"""
     vectores = []
     for i in range(0, n):
         vectores.append(generarElementoAleatorio())
     return vectores
+
+def elementoNeutroCF():
+    """Returns the unit of FF"""
+    return generarElemento("00000000000000000000000000000000\
+                           00000000000000000000000000000001")
 
 def sacarClave(imagenes,vectoresIncializacion): #Hay que lanzar una excepcion que salte si el sistema no tiene solucion (no se han reunido los suficientes usuarios)
     A = []
@@ -67,7 +78,6 @@ def sacarClave(imagenes,vectoresIncializacion): #Hay que lanzar una excepcion qu
 def generarImagenesPolinomio(coeficientes, vectoresInicializacion, bloqueInicial):
     imagenes = []
     for i in range(len(vectoresInicializacion)):
-        # imagen = F(I), I=vectorInicializacion[i]
         imagen = bloqueInicial
         for j in range(len(coeficientes)):
             imagen = imagen + (coeficientes[j] * (vectoresInicializacion[i]**(j+1)))
@@ -76,7 +86,7 @@ def generarImagenesPolinomio(coeficientes, vectoresInicializacion, bloqueInicial
 
 def generarSecretos(img, k, n):
     imagenBits = pasarABits(img)
-    bloque1bits = getFirstTwo64Bits(imagenBits)
+    bloque1bits = sacarSubloquesEnCuerpoFinito(imagenBits)
     vectoresInicializacion = generarElementosAleatorios(n)
     coeficientesP1 = generarElementosAleatorios(k - 1)
     coeficientesP2 = generarElementosAleatorios(k - 1)
@@ -84,16 +94,16 @@ def generarSecretos(img, k, n):
     imagenesP2 = generarImagenesPolinomio(coeficientesP2, vectoresInicializacion, bloque1bits[1])
     #p1 = sacarElementoCuerpoFinito(imagenesP1[0])
     #p2 = sacarElementoCuerpoFinito(imagenesP2[0])
+    clave = sacarElementoCuerpoFinito(bloque1bits[0]) + \
+        sacarElementoCuerpoFinito(bloque1bits[1])
     imgb = pasarListaBloqueBytesACadenaBits(imagenBits)
     cont = 0
     while (len(imgb) % 128 != 0):
         cont = cont + 1
         imgb = imgb + '0'
-    for i in range(n):
-        share = sacarElementoCuerpoFinito(imagenesP1[i]) + \
-                sacarElementoCuerpoFinito(imagenesP2[i])
-        iv = sacarElementoCuerpoFinito(bloque1bits[0]) + sacarElementoCuerpoFinito(bloque1bits[0])
-        imagenCifradaBits = cifrar(iv,imgb,share, len(img) + 1, len(img[0]),cont)
+    for i in range(len(imagenesP1)):
+        p = sacarElementoCuerpoFinito(imagenesP1[i]) + sacarElementoCuerpoFinito(imagenesP2[i])
+        imagenCifradaBits = cifrar(p,imgb,clave, len(img) + 1, len(img[0]),cont)
         vi = sacarElementoCuerpoFinito(vectoresInicializacion[i])
         imagenCifradaBits = imagenCifradaBits + vi
         imagenCifradaBits = pasarCadenaBitsAListaBits(imagenCifradaBits.to01())
@@ -126,7 +136,7 @@ def juntarSecretos(imagenes):
         imagen = pasarCadenaBitsAListaBits(imagen)
         imagenesBits.append(imagen)
     for i in range(len(imagenesBits)):
-        cabeceraImagen = getFirstTwo64Bits(imagenesBits[i])
+        cabeceraImagen = sacarSubloquesEnCuerpoFinito(imagenesBits[i])
         imagenesPolinomio1.append(cabeceraImagen[0])
         imagenesPolinomio2.append(cabeceraImagen[1])
     k1 = sacarClave(imagenesPolinomio1, vectoresIdentificacion)
@@ -152,7 +162,8 @@ def cifrar(vi,imagen,clave, high, width, padding):
     img = img.tobytes()
     cipher = AES.new(clave, AES.MODE_CBC, vi)
     imagencifrada = cipher.encrypt(img[16:])
-    imagencifrada = img[0:16] + imagencifrada
+    # imagencifrada = img[0:16] + imagencifrada
+    imagencifrada = vi + imagencifrada # img[0:16] need to be vi !
     imagencifrada = convertirBytesAMatrizBytes(imagencifrada, high, width)
     imagencifrada = pasarABits(imagencifrada)
     imagencifrada = pasarListaBloqueBytesACadenaBits(imagencifrada)

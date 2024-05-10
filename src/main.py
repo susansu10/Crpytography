@@ -1,6 +1,6 @@
 # coding=utf-8
-import sys 
-sys.path.append("..") 
+import sys
+sys.path.append('..')
 from skimage import io
 from time import time
 from include.shamir import generarSecretos, juntarSecretos
@@ -83,7 +83,7 @@ def descifrarImagen():
     tiempo = tiempo_final - tiempo_inicial
     print("The original image has been reconstructed")
     print("The computation time has been", tiempo, "seconds")
-    io.imsave('D:\\.vscode\\Crpytography\\data\\reconstruct\\out.png', imagenOriginal)
+    io.imsave('D:\\.vscode\\Crpytography\\data\\reconstruct\\original.png', imagenOriginal)
 
 
 if __name__ == '__main__':
