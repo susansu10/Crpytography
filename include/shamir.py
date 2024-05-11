@@ -53,15 +53,21 @@ def sacarClave(imagenes,vectoresIncializacion): #Hay que lanzar una excepcion qu
         fila = []
         for j in range(len(vectoresIncializacion)):
             fila.append(vectoresIncializacion[i]**j)
+        # print(f'A fila = {fila}')
         A.append(fila)
     A = np.array(A)
     A = FF(A)
+    # print(f'A = {A}')
+    
     for i in range(len(imagenes)):
         fila = []
         fila.append(imagenes[i])
+        # print(f'B fila = {fila}')
         B.append(fila)
+        
     B = np.array(B)
     B = FF(B)
+    # print(f'B = {B}')
     return np.linalg.solve(A,B)[0]
 
 def generarImagenesPolinomio(coeficientes, vectoresIdentificacion, bloqueInicial):
